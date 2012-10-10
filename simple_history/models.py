@@ -5,6 +5,7 @@ from django.contrib import admin
 from django.contrib.auth.models import User
 from django.utils import importlib
 from manager import HistoryDescriptor
+import simple_history
 
 class HistoricalRecords(object):
     def contribute_to_class(self, cls, name):
@@ -19,6 +20,18 @@ class HistoricalRecords(object):
             del self.skip_history_when_saving
             return ret
         setattr(cls, 'save_without_historical_record', save_without_historical_record)
+
+        # Injecting HistoricalRecords into ManyToManyFields' intermediate tables ('through' models)
+        if hasattr(cls, 'm2m_history_fields'):
+            m2m_history_fields = getattr(cls, 'm2m_history_fields', None)
+            assert (isinstance(m2m_history_fields, list)
+                or  isinstance(m2m_history_fields, tuple)), 'm2m_history_fields must be a list or tuple'
+            for field_name in m2m_history_fields:
+                field = getattr(cls, field_name).field
+                assert isinstance(field, models.fields.related.ManyToManyField), ('%s must be a ManyToManyField' % field_name)
+                if not sum([isinstance(item, HistoricalRecords) for item in field.rel.through.__dict__.values()]):
+                    field.rel.through.history = HistoricalRecords()
+                    simple_history.register(field.rel.through)
 
     def finalize(self, sender, **kwargs):
         history_model = self.create_history_model(sender)
