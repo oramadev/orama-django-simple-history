@@ -35,7 +35,9 @@ class SimpleHistoryAdmin(admin.ModelAdmin):
         model = self.model
         opts = model._meta
         app_label = opts.app_label
-        action_list = model.history.filter(id=object_id)
+        pk_name = opts.pk.attname
+        history = getattr(model, model._meta.simple_history_manager_attribute)
+        action_list = history.filter(**{pk_name: object_id})
         # If no history was found, see whether this object even exists.
         obj = get_object_or_404(model, pk=unquote(object_id))
         context = {
@@ -53,13 +55,15 @@ class SimpleHistoryAdmin(admin.ModelAdmin):
     def history_form_view(self, request, object_id, version_id):
         original_model = self.model
         original_opts = original_model._meta
-        model = self.model.history.model
+        history = getattr(self.model, self.model._meta.simple_history_manager_attribute)
+        model = history.model
         opts = model._meta
         app_label = opts.app_label
-        record = get_object_or_404(model, id=object_id, history_id=version_id)
+        pk_name = original_opts.pk.attname
+        record = get_object_or_404(model, **{pk_name: object_id, 'history_id': version_id})
         obj = record.instance
         obj._state.adding = False
-        original = get_object_or_404(original_model, id=object_id)
+        original = get_object_or_404(original_model, pk=object_id)
 
         if not self.has_change_permission(request, obj):
             raise PermissionDenied

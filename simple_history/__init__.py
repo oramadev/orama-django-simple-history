@@ -20,5 +20,5 @@ def register(model, app=None, manager_name='history'):
     if not model in registered_models:
         records = models.HistoricalRecords()
         records.manager_name = manager_name
-        records.module = ("%s.models" % app) or model.__module__
+        records.module = ("%s.models" % app) if app else model.__module__
         records.finalize(model)
