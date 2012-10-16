@@ -45,6 +45,8 @@ class HistoricalRecords(object):
                                          weak=False)
         models.signals.post_delete.connect(self.post_delete, sender=sender,
                                            weak=False)
+        models.signals.m2m_changed.connect(self.m2m_changed, sender=sender,
+                                           weak=False)
 
         descriptor = HistoryDescriptor(history_model)
         setattr(sender, self.manager_name, descriptor)
@@ -163,6 +165,27 @@ class HistoricalRecords(object):
 
     def post_delete(self, instance, **kwargs):
         self.create_historical_record(instance, '-')
+
+    def m2m_changed(self, action, instance, sender, **kwargs):
+        source_field_name, target_field_name = None, None
+        for field_name, field_value in sender.__dict__.items():
+            if isinstance(field_value, models.fields.related.ReverseSingleRelatedObjectDescriptor):
+                if field_value.field.related.parent_model == kwargs['model']:
+                    target_field_name = field_name
+                elif field_value.field.related.parent_model == type(instance):
+                    source_field_name = field_name
+        items = sender.objects.filter(**{source_field_name:instance})
+        if kwargs['pk_set']:
+            items = items.filter(**{target_field_name + '__id__in':kwargs['pk_set']})
+        for item in items:
+            if action == 'post_add':
+                if hasattr(item, 'skip_history_when_saving'):
+                    return
+                self.create_historical_record(item, '+')
+            elif action == 'pre_remove':
+                self.create_historical_record(item, '-')
+            elif action == 'pre_clear':
+                self.create_historical_record(item, '-')
 
     def create_historical_record(self, instance, type):
         changed_by = getattr(instance, '_changed_by_user', None)
