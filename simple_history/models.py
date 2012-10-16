@@ -173,16 +173,18 @@ class HistoricalRecords(object):
                     target_field_name = field_name
                 elif field_value.field.related.parent_model == type(instance):
                     source_field_name = field_name
-        for item in sender.objects.filter(**{source_field_name:instance,
-                                                 target_field_name + '__id__in':kwargs['pk_set']}):
+        items = sender.objects.filter(**{source_field_name:instance})
+        if kwargs['pk_set']:
+            items = items.filter(**{target_field_name + '__id__in':kwargs['pk_set']})
+        for item in items:
             if action == 'post_add':
                 if hasattr(item, 'skip_history_when_saving'):
                     return
                 self.create_historical_record(item, '+')
-            elif action == 'post_remove':
+            elif action == 'pre_remove':
                 self.create_historical_record(item, '-')
-            elif action == 'post_clear':
-                pass
+            elif action == 'pre_clear':
+                self.create_historical_record(item, '-')
 
     def create_historical_record(self, instance, type):
         changed_by = getattr(instance, '_changed_by_user', None)
