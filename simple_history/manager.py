@@ -20,7 +20,7 @@ class HistoryManager(models.Manager):
             return super(HistoryManager, self).get_query_set()
 
         if isinstance(self.instance._meta.pk, models.OneToOneField):
-            filter = {self.instance._meta.pk.name+"_id":self.instance.pk}
+            filter = {self.instance._meta.pk.name + "_id":self.instance.pk}
         else:
             filter = {self.instance._meta.pk.name: self.instance.pk}
         return super(HistoryManager, self).get_query_set().filter(**filter)
@@ -35,7 +35,7 @@ class HistoryManager(models.Manager):
         tmp = []
         for field in self.instance._meta.fields:
             if isinstance(field, models.ForeignKey):
-                tmp.append(field.name+"_id")
+                tmp.append(field.name + "_id")
             else:
                 tmp.append(field.name)
         fields = tuple(tmp)
@@ -54,10 +54,10 @@ class HistoryManager(models.Manager):
         if not self.instance:
             raise TypeError("Can't use as_of() without a %s instance." % \
                             self.instance._meta.object_name)
-        tmp=[]
+        tmp = []
         for field in self.instance._meta.fields:
             if isinstance(field, models.ForeignKey):
-                tmp.append(field.name+"_id")
+                tmp.append(field.name + "_id")
             else:
                 tmp.append(field.name)
         fields = tuple(tmp)
@@ -71,7 +71,7 @@ class HistoryManager(models.Manager):
             raise self.instance.DoesNotExist("%s had already been deleted." % \
                                              self.instance._meta.object_name)
         return self.instance.__class__(*values[1:])
-    
+
     def as_of_related(self, date):
         """
         Returns an instance of the original model with all the attributes set
@@ -80,15 +80,20 @@ class HistoryManager(models.Manager):
         with their historical versions at the provided date.
         """
         def inject_acessor(instance):
-            fk_fields = [] 
+            fk_fields = []
+            m2m_fields = []
             attributes = []
             for field in instance._meta.fields:
                 if isinstance(field, models.ForeignKey):
                     fk_fields.append(field.name)
                 attr = (field.name, getattr(instance, field.name))
                 attributes.append(attr)
-            
+
             base_class = instance.__class__
+
+            if hasattr(base_class, 'm2m_history_fields'):
+                m2m_fields = getattr(base_class, 'm2m_history_fields', [])
+
             new_base = (base_class,)
             new_name = '%s_as_of_managed' % base_class.__name__
             #new_name = base_class.__name__
@@ -107,10 +112,22 @@ class HistoryManager(models.Manager):
                         value = inject_acessor(value)
                     setattr(value, 'as_of_retrieved', True)
                     return value
+                elif name in m2m_fields:
+                    m2m_class = base_class.__dict__[name].through
+                    source_field_name, target_field_name = None, None
+                    for field_name, field_value in m2m_class.__dict__.items():
+                        if isinstance(field_value, models.fields.related.ReverseSingleRelatedObjectDescriptor):
+                            if field_value.field.related.parent_model == instance.__class__:
+                                source_field_name = field_name
+                            if field_value.field.related.parent_model == m2m_class:
+                                target_field_name = field_name
+                    items = m2m_class.history.filter(**{source_field_name + '_id':instance.pk})
+                    # TODO lsantos: group items by target field inter order by history_date then query history_type '+'
+                    return list(items)
                 else:
                     #raise AttributeError()
                     return base_class.__getattribute__(attr_instance, name)
-            
+
             new_dict = {'__getattribute__': getattribute,
                         'as_of_related': True,
                         #'simple_history_overridden_fields': fk_fields,
@@ -119,11 +136,11 @@ class HistoryManager(models.Manager):
             new_class = type(new_name, new_base, new_dict)
             #new_class._meta.db_table = base_class._meta.db_table
             new_class._meta.proxy = True
-            
+
             new_kwargs = dict(attributes);
             return new_class(**new_kwargs)
             # return new_class.objects.create(**new_kwargs)
-        
+
         historical_instance = self.as_of(date)
         return inject_acessor(historical_instance)
 
