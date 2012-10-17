@@ -113,17 +113,32 @@ class HistoryManager(models.Manager):
                     setattr(value, 'as_of_retrieved', True)
                     return value
                 elif name in m2m_fields:
+                    # Next four lines based on: http://djangosnippets.org/snippets/236/
+                    from django.db.models.sql.compiler import SQLCompiler
+                    sql_patched = getattr(SQLCompiler, 'quote_name_unless_alias_patched', False)
+                    if not sql_patched:
+                        _quote_name_unless_alias = SQLCompiler.quote_name_unless_alias
+                        SQLCompiler.quote_name_unless_alias_patched = True
+                        SQLCompiler.quote_name_unless_alias = lambda self, name: name if name.startswith('(') else _quote_name_unless_alias(self, name)
+
                     m2m_class = base_class.__dict__[name].through
                     source_field_name, target_field_name = None, None
                     for field_name, field_value in m2m_class.__dict__.items():
                         if isinstance(field_value, models.fields.related.ReverseSingleRelatedObjectDescriptor):
                             if field_value.field.related.parent_model == instance.__class__:
                                 source_field_name = field_name
-                            if field_value.field.related.parent_model == m2m_class:
+                            else:
                                 target_field_name = field_name
-                    items = m2m_class.history.filter(**{source_field_name + '_id':instance.pk})
-                    # TODO lsantos: group items by target field inter order by history_date then query history_type '+'
-                    return list(items)
+
+                    db_table = m2m_class.history.model._meta.db_table
+                    table = '(select max(history_id) as max_id from %s inner_hm2m'\
+                            ' where history_date <= "%s" and %s_id=%s'\
+                            ' group by id'\
+                            ' order by history_date desc, history_id desc) as top_ids'\
+                             % (db_table, date.strftime('%Y-%m-%d %H:%M:%S'), source_field_name, instance.pk)
+                    conditions = ['top_ids.max_id = %s.history_id' % db_table,
+                                  'history_type = "+"']
+                    return m2m_class.history.get_query_set().extra(where=conditions, tables=[table])
                 else:
                     #raise AttributeError()
                     return base_class.__getattribute__(attr_instance, name)
