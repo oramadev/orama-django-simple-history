@@ -61,9 +61,10 @@ class SimpleHistoryAdmin(admin.ModelAdmin):
         app_label = opts.app_label
         pk_name = original_opts.pk.attname
         record = get_object_or_404(model, **{pk_name: object_id, 'history_id': version_id})
-        obj = record.instance
-        obj._state.adding = False
         original = get_object_or_404(original_model, pk=object_id)
+        original_history = getattr(original, self.model._meta.simple_history_manager_attribute)
+        obj = original_history.as_of_related(record.history_date)
+        obj._state.adding = False
 
         if not self.has_change_permission(request, obj):
             raise PermissionDenied

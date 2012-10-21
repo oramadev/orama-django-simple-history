@@ -72,7 +72,7 @@ class HistoryManager(models.Manager):
                                              self.instance._meta.object_name)
         return self.instance.__class__(*values[1:])
 
-    def as_of_related(self, date):
+    def as_of_related(self, history_date):
         """
         Returns an instance of the original model with all the attributes set
         according to what was present on the object on the date provided, and
@@ -80,22 +80,19 @@ class HistoryManager(models.Manager):
         with their historical versions at the provided date.
         """
         def inject_acessor(instance):
+            base_class = instance.__class__
+            
             fk_fields = []
-            m2m_fields = []
             attributes = []
+            m2m_fields = getattr(base_class, 'm2m_history_fields', [])
             for field in instance._meta.fields:
                 if isinstance(field, models.ForeignKey):
                     fk_fields.append(field.name)
                 attr = (field.name, getattr(instance, field.name))
                 attributes.append(attr)
 
-            base_class = instance.__class__
-
-            if hasattr(base_class, 'm2m_history_fields'):
-                m2m_fields = getattr(base_class, 'm2m_history_fields', [])
-
             new_base = (base_class,)
-            new_name = '%s_as_of_managed' % base_class.__name__
+            new_name = '%s_as_of_%s_managed' % (base_class.__name__, history_date.strftime("%Y%m%d%H%M%S"))
             #new_name = base_class.__name__
 
             def getattribute(attr_instance, name):
@@ -107,13 +104,13 @@ class HistoryManager(models.Manager):
                     value = base_class.__getattribute__(attr_instance, name)
                     if hasattr(value, 'simple_history_manager') and not hasattr(value, 'as_of_retrieved'):
                         manager = getattr(value, value.simple_history_manager)
-                        value = manager.as_of(date)
+                        value = manager.as_of(history_date)
                     if value and not hasattr(value, 'as_of_managed'):
                         value = inject_acessor(value)
                     setattr(value, 'as_of_retrieved', True)
                     return value
                 elif name in m2m_fields:
-                    # Next four lines based on: http://djangosnippets.org/snippets/236/
+                    # Next six lines based on: http://djangosnippets.org/snippets/236/
                     from django.db.models.sql.compiler import SQLCompiler
                     sql_patched = getattr(SQLCompiler, 'quote_name_unless_alias_patched', False)
                     if not sql_patched:
@@ -135,10 +132,17 @@ class HistoryManager(models.Manager):
                             ' where history_date <= "%s" and %s_id=%s'\
                             ' group by id'\
                             ' order by history_date desc, history_id desc) as top_ids'\
-                             % (db_table, date.strftime('%Y-%m-%d %H:%M:%S'), source_field_name, instance.pk)
+                             % (db_table, history_date.strftime('%Y-%m-%d %H:%M:%S'), source_field_name, instance.pk)
                     conditions = ['top_ids.max_id = %s.history_id' % db_table,
                                   'history_type = "+"']
-                    return m2m_class.history.get_query_set().extra(where=conditions, tables=[table])
+                    historical_items = m2m_class.history.get_query_set().extra(where=conditions, tables=[table])
+                    m2m_item_ids = historical_items.values_list(target_field_name + '_id', flat=True)
+                    target_model = base_class.__dict__[name].field.rel.to
+                    items = target_model.objects.filter(pk__in=list(m2m_item_ids))
+                    return items
+                    # TODO: items retrieved through this queryset should also be injected.
+                    # Known issue: this will only retrieve target items that haven't been deleted. 
+                
                 else:
                     #raise AttributeError()
                     return base_class.__getattribute__(attr_instance, name)
@@ -154,8 +158,7 @@ class HistoryManager(models.Manager):
 
             new_kwargs = dict(attributes);
             return new_class(**new_kwargs)
-            # return new_class.objects.create(**new_kwargs)
 
-        historical_instance = self.as_of(date)
+        historical_instance = self.as_of(history_date)
         return inject_acessor(historical_instance)
 
