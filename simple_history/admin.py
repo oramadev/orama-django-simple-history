@@ -45,8 +45,8 @@ class SimpleHistoryAdmin(admin.ModelAdmin):
             'action_list': action_list,
             'module_name': capfirst(force_unicode(opts.verbose_name_plural)),
             'object': obj,
-            'root_path': self.admin_site.root_path,
             'app_label': app_label,
+            'opts': opts
         }
         context.update(extra_context or {})
         context_instance = template.RequestContext(request, current_app=self.admin_site.name)
@@ -131,7 +131,6 @@ class SimpleHistoryAdmin(admin.ModelAdmin):
             'content_type_id': ContentType.objects.get_for_model(self.model).id,
             'save_as': self.save_as,
             'save_on_top': self.save_on_top,
-            'root_path': self.admin_site.root_path,
         }
         context_instance = template.RequestContext(request, current_app=self.admin_site.name)
         return render_to_response(self.object_history_form_template, context, context_instance)

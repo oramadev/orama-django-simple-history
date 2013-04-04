@@ -1,3 +1,6 @@
+Mar 04, 2013:
+ - Support to Django 1.5
+
 Oct 22, 2010:
  - Merged setup.py from Klaas van Schelven - Thanks! 
 

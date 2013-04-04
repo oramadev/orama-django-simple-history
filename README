@@ -1,4 +1,4 @@
-django-simple-history is a tool to store state of DB objects on every create/update/delete. It has been tested to work in django 1.X (including 1.2.3 as of 10/25/2010).
+django-simple-history is a tool to store state of DB objects on every create/update/delete. It has been tested to work in django 1.5
 
 == Install ==
 Download the tar.gz, extract it and run the following inside the directory:
