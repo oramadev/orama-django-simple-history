@@ -1,6 +1,6 @@
 from django import template
 from django.db import models
-from django.conf.urls.defaults import patterns, url
+from django.conf.urls import patterns, url
 from django.conf import settings
 from django.contrib import admin
 from django.contrib.admin import helpers
