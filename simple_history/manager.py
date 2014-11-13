@@ -15,15 +15,15 @@ class HistoryManager(models.Manager):
         self.model = model
         self.instance = instance
 
-    def get_query_set(self):
+    def get_queryset(self):
         if self.instance is None:
-            return super(HistoryManager, self).get_query_set()
+            return super(HistoryManager, self).get_queryset()
 
         if isinstance(self.instance._meta.pk, models.OneToOneField):
             filter = {self.instance._meta.pk.name + "_id":self.instance.pk}
         else:
             filter = {self.instance._meta.pk.name: self.instance.pk}
-        return super(HistoryManager, self).get_query_set().filter(**filter)
+        return super(HistoryManager, self).get_queryset().filter(**filter)
 
     def most_recent(self):
         """
@@ -135,7 +135,7 @@ class HistoryManager(models.Manager):
                              % (db_table, history_date.strftime('%Y-%m-%d %H:%M:%S'), source_field_name, instance.pk)
                     conditions = ['top_ids.max_id = %s.history_id' % db_table,
                                   'history_type = "+"']
-                    historical_items = m2m_class.history.get_query_set().extra(where=conditions, tables=[table])
+                    historical_items = m2m_class.history.get_queryset().extra(where=conditions, tables=[table])
                     m2m_item_ids = historical_items.values_list(target_field_name + '_id', flat=True)
                     target_model = base_class.__dict__[name].field.rel.to
                     items = target_model.objects.filter(pk__in=list(m2m_item_ids))
