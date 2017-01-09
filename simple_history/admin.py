@@ -1,13 +1,13 @@
 from django import template
 from django.db import models
-from django.conf.urls import patterns, url
+from django.conf.urls import url
 from django.conf import settings
 from django.contrib import admin
 from django.contrib.admin import helpers
 from django.contrib.contenttypes.models import ContentType
 from django.core.urlresolvers import reverse
 from django.shortcuts import get_object_or_404, render_to_response
-from django.contrib.admin.util import unquote
+from django.contrib.admin.utils import unquote
 from django.utils.text import capfirst
 from django.utils.html import mark_safe
 from django.utils.translation import ugettext as _
@@ -23,11 +23,11 @@ class SimpleHistoryAdmin(admin.ModelAdmin):
         urls = super(SimpleHistoryAdmin, self).get_urls()
         admin_site = self.admin_site
         opts = self.model._meta
-        info = opts.app_label, opts.module_name,
-        history_urls = patterns("",
+        info = opts.app_label, opts.model_name,
+        history_urls = [
             url("^([^/]+)/history/([^/]+)/$",
                 admin_site.admin_view(self.history_form_view),
-                name='%s_%s_simple_history' % info),)
+                name='%s_%s_simple_history' % info)]
         return history_urls + urls
 
     def history_view(self, request, object_id, extra_context=None):

@@ -2,10 +2,11 @@ import copy
 import datetime
 from django.db import models
 from django.contrib import admin
-from django.contrib.auth.models import User
-from django.utils import importlib
+import importlib
 from manager import HistoryDescriptor
 import simple_history
+from django.conf import settings
+
 
 class HistoricalRecords(object):
     def contribute_to_class(self, cls, name):
@@ -123,6 +124,8 @@ class HistoricalRecords(object):
         Returns a dictionary of fields that will be added to the historical
         record model, in addition to the ones returned by copy_fields below.
         """
+        user_model = getattr(settings, 'AUTH_USER_MODEL', 'auth.User')
+
         @models.permalink
         def revert_url(self):
             opts = model._meta
@@ -142,7 +145,7 @@ class HistoricalRecords(object):
                 ('-', 'Deleted'),
             )),
             'history_object': HistoricalObjectDescriptor(model),
-            'changed_by': models.ForeignKey(User, null=True),
+            'changed_by': models.ForeignKey(user_model, null=True),
             'instance': property(get_instance),
             'revert_url': revert_url,
             '__unicode__': lambda self: u'%s as of %s' % (self.history_object,
