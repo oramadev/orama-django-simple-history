@@ -19,10 +19,7 @@ class HistoryManager(models.Manager):
         if self.instance is None:
             return super(HistoryManager, self).get_queryset()
 
-        if isinstance(self.instance._meta.pk, models.OneToOneField):
-            filter = {self.instance._meta.pk.name + "_id":self.instance.pk}
-        else:
-            filter = {self.instance._meta.pk.name: self.instance.pk}
+        filter = {id: self.instance.pk}
         return super(HistoryManager, self).get_queryset().filter(**filter)
 
     def most_recent(self):
